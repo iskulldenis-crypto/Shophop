@@ -1,0 +1,5 @@
+{
+  "name": "ShopHop",
+  "description": "A local shop showcase and delivery platform where users can find nearby shops, check product prices, and order deliveries directly from shopkeepers.",
+  "requestFramePermissions": ["geolocation"]
+}

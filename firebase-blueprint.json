@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email address" },
+        "role": { "type": "string", "enum": ["client", "shopkeeper"], "description": "User role" },
+        "phone": { "type": "string", "description": "Phone number for payments/contact" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Information about a local shop",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "description": "UID of the shopkeeper" },
+        "name": { "type": "string", "description": "Shop name" },
+        "description": { "type": "string", "description": "Shop description" },
+        "category": { "type": "string", "description": "Shop category (e.g., Grocery, Pharmacy)" },
+        "image": { "type": "string", "description": "Shop cover image URL" },
+        "isOpen": { "type": "boolean", "description": "Current availability status" },
+        "location": { "type": "string", "description": "Physical address or coordinates" },
+        "paymentNumber": { "type": "string", "description": "Number for client payments" }
+      },
+      "required": ["ownerId", "name", "isOpen"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product sold in a shop",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string", "description": "ID of the shop" },
+        "name": { "type": "string", "description": "Product name" },
+        "price": { "type": "number", "description": "Product price" },
+        "image": { "type": "string", "description": "Product image URL" },
+        "description": { "type": "string", "description": "Product description" },
+        "isAvailable": { "type": "boolean", "description": "Stock status" }
+      },
+      "required": ["shopId", "name", "price"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Delivery order details",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "UID of the client" },
+        "shopId": { "type": "string", "description": "ID of the shop" },
+        "items": { "type": "array", "description": "List of products and quantities" },
+        "total": { "type": "number", "description": "Total order amount" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "delivering", "completed", "cancelled"], "description": "Order status" },
+        "deliveryAddress": { "type": "string", "description": "Address for delivery" },
+        "paymentNumber": { "type": "string", "description": "Number client paid with" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Order timestamp" },
+        "estimatedDeliveryTime": { "type": "string", "description": "Estimated time for delivery (e.g., '30-45 mins')" },
+        "cancellationReason": { "type": "string", "description": "Reason for order cancellation" }
+      },
+      "required": ["clientId", "shopId", "items", "total", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer review for a shop",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string", "description": "ID of the shop" },
+        "clientId": { "type": "string", "description": "UID of the client" },
+        "clientName": { "type": "string", "description": "Name of the client" },
+        "rating": { "type": "number", "description": "Rating from 1 to 5" },
+        "comment": { "type": "string", "description": "Review comment" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Review timestamp" }
+      },
+      "required": ["shopId", "clientId", "rating"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/shops/{shopId}": { "schema": "Shop", "description": "Shops list" },
+    "/shops/{shopId}/products/{productId}": { "schema": "Product", "description": "Products per shop" },
+    "/shops/{shopId}/reviews/{reviewId}": { "schema": "Review", "description": "Reviews for a shop" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Delivery orders" }
+  }
+}

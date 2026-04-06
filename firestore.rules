@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getShop(shopId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
+    function hasOnlyAllowedFields(data, allowedFields) {
+      return data.keys().hasOnly(allowedFields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(data, ['uid', 'name', 'email', 'role', 'phone', 'photoURL']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['client', 'shopkeeper'];
+    }
+
+    function isValidShop(data) {
+      return hasOnlyAllowedFields(data, ['ownerId', 'name', 'description', 'category', 'image', 'isOpen', 'location', 'paymentNumber']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 500)) &&
+             (!('image' in data) || isValidUrl(data.image)) &&
+             data.isOpen is bool;
+    }
+
+    function isValidProduct(data) {
+      return hasOnlyAllowedFields(data, ['shopId', 'name', 'price', 'image', 'description', 'isAvailable']) &&
+             data.shopId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.isAvailable is bool;
+    }
+
+    function isValidOrder(data) {
+      return hasOnlyAllowedFields(data, ['clientId', 'shopId', 'items', 'total', 'status', 'deliveryAddress', 'paymentNumber', 'createdAt', 'estimatedDeliveryTime', 'cancellationReason']) &&
+             data.clientId == request.auth.uid &&
+             data.shopId is string &&
+             data.items is list && data.items.size() > 0 && data.items.size() < 50 &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['pending', 'accepted', 'delivering', 'completed', 'cancelled'] &&
+             data.deliveryAddress is string && data.deliveryAddress.size() > 0 && data.deliveryAddress.size() < 500 &&
+             data.paymentNumber is string && data.paymentNumber.size() > 0 &&
+             (!('estimatedDeliveryTime' in data) || (data.estimatedDeliveryTime is string && data.estimatedDeliveryTime.size() < 100)) &&
+             (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() < 500));
+    }
+
+    function isValidReview(data) {
+      return hasOnlyAllowedFields(data, ['shopId', 'clientId', 'clientName', 'rating', 'comment', 'createdAt']) &&
+             data.shopId is string &&
+             data.clientId == request.auth.uid &&
+             data.clientName is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             (!('comment' in data) || (data.comment is string && data.comment.size() < 1000));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /shops/{shopId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidShop(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.ownerId && isValidShop(request.resource.data);
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
+
+      match /products/{productId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated() && getShop(shopId).ownerId == request.auth.uid && isValidProduct(request.resource.data);
+        allow delete: if isAuthenticated() && getShop(shopId).ownerId == request.auth.uid;
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && isValidReview(request.resource.data);
+        allow delete: if isAuthenticated() && (request.auth.uid == resource.data.clientId || getShop(shopId).ownerId == request.auth.uid);
+      }
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || request.auth.uid == getShop(resource.data.shopId).ownerId);
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.clientId && request.resource.data.status == 'cancelled' && resource.data.status == 'pending') ||
+        (request.auth.uid == getShop(resource.data.shopId).ownerId)
+      ) && isValidOrder(request.resource.data);
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
